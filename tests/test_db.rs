@@ -234,3 +234,19 @@ fn set_option_cf_test() {
         db.set_options_cf(cf1, &multiple_options).unwrap();
     }
 }
+
+#[test]
+fn test_open_utf8_path() {
+    let tmp = TemporaryDBPath::new();
+    let path = tmp.join("_rust_rocksdb_utf8_path_temporärer_Ordner");
+    {
+        let db = DB::open_default(&path).unwrap();
+
+        assert!(db.put(b"k1", b"v1111").is_ok());
+
+        let r = db.get(b"k1");
+        assert_eq!(r.unwrap().unwrap().to_utf8().unwrap(), "v1111");
+        assert!(db.delete(b"k1").is_ok());
+        assert!(db.get(b"k1").unwrap().is_none());
+    }
+}
