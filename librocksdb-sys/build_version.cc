@@ -3,13 +3,24 @@
 #include <memory>
 
 #include "rocksdb/version.h"
+#include "rocksdb/utilities/object_registry.h"
 #include "util/string_util.h"
 
 // The build script may replace these values with real values based
 // on whether or not GIT is available and the platform settings
-static const std::string rocksdb_build_git_sha  = "rocksdb_build_git_sha:df4d3cf6fd52907f9a9a9bb62f124891787610eb";
-static const std::string rocksdb_build_git_tag = "rocksdb_build_git_tag:v6.28.2";
-static const std::string rocksdb_build_date = "rocksdb_build_date:2022-02-02 17:56:55";
+static const std::string rocksdb_build_git_sha  = "rocksdb_build_git_sha:f2f26b1559b77f56f3074c5cb7d93112b2dd3f9f";
+static const std::string rocksdb_build_git_tag = "rocksdb_build_git_tag:v7.2.2";
+static const std::string rocksdb_build_date = "rocksdb_build_date:2022-04-28 08:05:36";
+
+#ifndef ROCKSDB_LITE
+extern "C" {
+
+} // extern "C"
+
+std::unordered_map<std::string, ROCKSDB_NAMESPACE::RegistrarFunc> ROCKSDB_NAMESPACE::ObjectRegistry::builtins_ = {
+
+};
+#endif //ROCKSDB_LITE
 
 namespace ROCKSDB_NAMESPACE {
 static void AddProperty(std::unordered_map<std::string, std::string> *props, const std::string& name) {
@@ -43,7 +54,7 @@ std::string GetRocksVersionAsString(bool with_patch) {
     return version + "." + ToString(ROCKSDB_PATCH);
   } else {
     return version;
-  }
+ }
 }
 
 std::string GetRocksBuildInfoAsString(const std::string& program, bool verbose) {

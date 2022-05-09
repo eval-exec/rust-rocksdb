@@ -84,6 +84,9 @@ jobs:
       - name: Install dependencies
         if: runner.os == 'Windows'
         run: choco install llvm -y
+      - name: Install jemalloc
+        if: runner.os == 'Linux'
+        run: sudo apt install libjemalloc-dev
       - name: Run librocksdb-sys tests
         uses: actions-rs/cargo@v1
         with:
@@ -93,3 +96,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: Run rocksdb tests (jemalloc)
+        if: runner.os == 'Linux'
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features jemalloc
