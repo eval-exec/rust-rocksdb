@@ -17,7 +17,14 @@ fn get_flags_from_detect_platform_script() -> Option<Vec<String>> {
                         let flags: Vec<String> = flags_string
                             .split(' ')
                             .filter_map(|s| {
-                                if !s.is_empty() && s != "-DZLIB" && s != "-DBZIP2" {
+                                if !s.is_empty()
+                                    && s != "-DZLIB"
+                                    && s != "-DBZIP2"
+                                    && s != "-DLZ4"
+                                    && s != "-DZSTD"
+                                    && s != "-DSNAPPY"
+                                    && s != "-DROCKSDB_BACKTRACE"
+                                {
                                     Some(s.to_owned())
                                 } else {
                                     None
@@ -110,6 +117,9 @@ fn build_rocksdb() {
 
     config.include(".");
     config.define("NDEBUG", Some("1"));
+    // Explicitly disable stats and perf
+    config.define("NIOSTATS_CONTEXT", None);
+    config.define("NPERF_CONTEXT", None);
 
     let mut lib_sources = include_str!("rocksdb_lib_sources.txt")
         .trim()
