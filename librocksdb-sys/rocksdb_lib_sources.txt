@@ -4,6 +4,7 @@ cache/cache_key.cc
 cache/cache_reservation_manager.cc
 cache/clock_cache.cc
 cache/lru_cache.cc
+cache/compressed_secondary_cache.cc
 cache/sharded_cache.cc
 db/arena_wrapped_db_iter.cc
 db/blob/blob_fetcher.cc
@@ -86,7 +87,6 @@ env/composite_env.cc
 env/env.cc
 env/env_chroot.cc
 env/env_encryption.cc
-env/env_hdfs.cc
 env/env_posix.cc
 env/file_system.cc
 env/fs_posix.cc
@@ -212,6 +212,7 @@ util/build_version.cc
 util/coding.cc
 util/compaction_job_stats_impl.cc
 util/comparator.cc
+util/compression.cc
 util/compression_context_cache.cc
 util/concurrent_task_limiter_impl.cc
 util/crc32c.cc
@@ -222,7 +223,6 @@ util/murmurhash.cc
 util/random.cc
 util/rate_limiter.cc
 util/ribbon_config.cc
-util/regex.cc
 util/slice.cc
 util/file_checksum_helper.cc
 util/status.cc
@@ -230,7 +230,8 @@ util/string_util.cc
 util/thread_local.cc
 util/threadpool_imp.cc
 util/xxhash.cc
-utilities/backupable/backupable_db.cc
+utilities/agg_merge/agg_merge.cc
+utilities/backup/backup_engine.cc
 utilities/blob_db/blob_compaction_filter.cc
 utilities/blob_db/blob_db.cc
 utilities/blob_db/blob_db_impl.cc
@@ -245,6 +246,7 @@ utilities/checkpoint/checkpoint_impl.cc
 utilities/compaction_filters.cc
 utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
 utilities/convenience/info_log_finder.cc
+utilities/counted_fs.cc
 utilities/debug.cc
 utilities/env_mirror.cc
 utilities/env_timed.cc

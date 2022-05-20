@@ -1,6 +1,49 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
+
+fn get_flags_from_detect_platform_script() -> Option<Vec<String>> {
+    if !cfg!(target_os = "windows") {
+        let mut cmd = Command::new("bash");
+        if cfg!(feature = "portable") {
+            cmd.env("PORTABLE", "1");
+        }
+
+        let output = cmd
+            .arg("build_detect_platform")
+            .output()
+            .expect("failed to execute process");
+        if output.status.success() {
+            let raw = String::from_utf8_lossy(&output.stdout);
+            if let Ok(ini) = ini::Ini::load_from_str(&raw) {
+                if let Some(section) = ini.section(None::<String>) {
+                    if let Some(flags_string) = section.get("PLATFORM_CXXFLAGS") {
+                        let flags: Vec<String> = flags_string
+                            .split(' ')
+                            .filter_map(|s| {
+                                if !s.is_empty()
+                                    && s != "-DZLIB"
+                                    && s != "-DBZIP2"
+                                    && s != "-DLZ4"
+                                    && s != "-DZSTD"
+                                    && s != "-DSNAPPY"
+                                    && s != "-DROCKSDB_BACKTRACE"
+                                {
+                                    Some(s.to_owned())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        return Some(flags);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
 
 fn link(name: &str, bundled: bool) {
     use std::env::var;
@@ -79,6 +122,9 @@ fn build_rocksdb() {
 
     config.include(".");
     config.define("NDEBUG", Some("1"));
+    // Explicitly disable stats and perf
+    config.define("NIOSTATS_CONTEXT", None);
+    config.define("NPERF_CONTEXT", None);
 
     let mut lib_sources = include_str!("rocksdb_lib_sources.txt")
         .trim()
@@ -93,52 +139,59 @@ fn build_rocksdb() {
         .filter(|&file| file != "util/build_version.cc")
         .collect::<Vec<&'static str>>();
 
-    if target.contains("x86_64") {
-        // This is needed to enable hardware CRC32C. Technically, SSE 4.2 is
-        // only available since Intel Nehalem (about 2010) and AMD Bulldozer
-        // (about 2011).
-        let target_feature = env::var("CARGO_CFG_TARGET_FEATURE").unwrap();
-        let target_features: Vec<_> = target_feature.split(",").collect();
-        if target_features.contains(&"sse2") {
-            config.flag_if_supported("-msse2");
+    if let Some(flags) = get_flags_from_detect_platform_script() {
+        println!("PLATFORM_CXXFLAGS: {:?}", flags);
+        for flag in flags {
+            config.flag(&flag);
         }
-        if target_features.contains(&"sse4.1") {
-            config.flag_if_supported("-msse4.1");
-        }
-        if target_features.contains(&"sse4.2") {
-            config.flag_if_supported("-msse4.2");
-            config.define("HAVE_SSE42", Some("1"));
-        }
+    } else {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        if !cfg!(feature = "portable") {
+            if is_x86_feature_detected!("sse4.2") {
+                config.flag_if_supported("-msse4.2");
+                config.define("HAVE_SSE42", None);
+            }
+            if is_x86_feature_detected!("avx2") {
+                config.flag_if_supported("-mavx2");
+                config.define("HAVE_AVX2", None);
+            }
+            if is_x86_feature_detected!("bmi2") {
+                config.define("HAVE_BMI", None);
+            }
 
-        if !target.contains("android") {
-            if target_features.contains(&"pclmulqdq") {
-                config.define("HAVE_PCLMUL", Some("1"));
-                config.flag_if_supported("-mpclmul");
+            if !target.contains("android") {
+                if is_x86_feature_detected!("pclmulqdq") {
+                    config.define("HAVE_PCLMUL", None);
+                    config.flag_if_supported("-mpclmul");
+                }
             }
         }
+        if target.contains("darwin") {
+            config.define("OS_MACOSX", None);
+            config.define("ROCKSDB_PLATFORM_POSIX", None);
+            config.define("ROCKSDB_LIB_IO_POSIX", None);
+        } else if target.contains("android") {
+            config.define("OS_ANDROID", None);
+            config.define("ROCKSDB_PLATFORM_POSIX", None);
+            config.define("ROCKSDB_LIB_IO_POSIX", None);
+        } else if target.contains("linux") {
+            config.define("OS_LINUX", None);
+            config.define("ROCKSDB_PLATFORM_POSIX", None);
+            config.define("ROCKSDB_LIB_IO_POSIX", None);
+        } else if target.contains("freebsd") {
+            config.define("OS_FREEBSD", None);
+            config.define("ROCKSDB_PLATFORM_POSIX", None);
+            config.define("ROCKSDB_LIB_IO_POSIX", None);
+        }
+        config.define("ROCKSDB_SUPPORT_THREAD_LOCAL", None);
+        config.flag(&cxx_standard());
     }
 
     if target.contains("aarch64") {
         lib_sources.push("util/crc32c_arm64.cc")
     }
 
-    if target.contains("darwin") {
-        config.define("OS_MACOSX", None);
-        config.define("ROCKSDB_PLATFORM_POSIX", None);
-        config.define("ROCKSDB_LIB_IO_POSIX", None);
-    } else if target.contains("android") {
-        config.define("OS_ANDROID", None);
-        config.define("ROCKSDB_PLATFORM_POSIX", None);
-        config.define("ROCKSDB_LIB_IO_POSIX", None);
-    } else if target.contains("linux") {
-        config.define("OS_LINUX", None);
-        config.define("ROCKSDB_PLATFORM_POSIX", None);
-        config.define("ROCKSDB_LIB_IO_POSIX", None);
-    } else if target.contains("freebsd") {
-        config.define("OS_FREEBSD", None);
-        config.define("ROCKSDB_PLATFORM_POSIX", None);
-        config.define("ROCKSDB_LIB_IO_POSIX", None);
-    } else if target.contains("windows") {
+    if target.contains("windows") {
         link("rpcrt4", false);
         link("shlwapi", false);
         config.define("DWIN32", None);
@@ -172,23 +225,46 @@ fn build_rocksdb() {
             .collect::<Vec<&'static str>>();
 
         // Add Windows-specific sources
-        lib_sources.push("port/win/port_win.cc");
-        lib_sources.push("port/win/env_win.cc");
-        lib_sources.push("port/win/env_default.cc");
-        lib_sources.push("port/win/win_logger.cc");
-        lib_sources.push("port/win/io_win.cc");
-        lib_sources.push("port/win/win_thread.cc");
+        lib_sources.extend([
+            "port/win/env_default.cc",
+            "port/win/port_win.cc",
+            "port/win/xpress_win.cc",
+            "port/win/io_win.cc",
+            "port/win/win_thread.cc",
+            "port/win/env_win.cc",
+            "port/win/win_logger.cc",
+        ]);
+
+        if cfg!(feature = "jemalloc") {
+            lib_sources.push("port/win/win_jemalloc.cc");
+        }
     }
 
-    config.define("ROCKSDB_SUPPORT_THREAD_LOCAL", None);
+    if target.contains("linux") && cfg!(feature = "io-uring") {
+        if pkg_config::probe_library("liburing").is_ok() {
+            config.define("ROCKSDB_IOURING_PRESENT", Some("1"));
+        }
+    }
 
     if target.contains("msvc") {
         config.flag("-EHsc");
+        config.flag("-std:c++17");
     } else {
-        config.flag(&cxx_standard());
-        // this was breaking the build on travis due to
-        // > 4mb of warnings emitted.
+        // matches the flags in CMakeLists.txt from rocksdb
+        config.flag("-Wsign-compare");
+        config.flag("-Wshadow");
         config.flag("-Wno-unused-parameter");
+        config.flag("-Wno-unused-variable");
+        config.flag("-Woverloaded-virtual");
+        config.flag("-Wnon-virtual-dtor");
+        config.flag("-Wno-missing-field-initializers");
+        config.flag("-Wno-strict-aliasing");
+        config.flag("-Wno-invalid-offsetof");
+
+        if cfg!(feature = "jemalloc") {
+            config.define("ROCKSDB_JEMALLOC", None);
+            config.define("JEMALLOC_NO_DEMANGLE", None);
+        }
     }
 
     for file in lib_sources {
@@ -341,7 +417,7 @@ fn try_to_find_and_link_lib(lib_name: &str) -> bool {
 }
 
 fn cxx_standard() -> String {
-    env::var("ROCKSDB_CXX_STD").map_or("-std=c++11".to_owned(), |cxx_std| {
+    env::var("ROCKSDB_CXX_STD").map_or("-std=c++17".to_owned(), |cxx_std| {
         if !cxx_std.starts_with("-std=") {
             format!("-std={}", cxx_std)
         } else {

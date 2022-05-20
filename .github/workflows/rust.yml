@@ -67,6 +67,15 @@ jobs:
           - build: windows-2019
             os: windows-2019
     steps:
+      - name: Maximize build space
+        if: runner.os == 'Linux'
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
@@ -84,12 +93,33 @@ jobs:
       - name: Install dependencies
         if: runner.os == 'Windows'
         run: choco install llvm -y
+      - name: Install jemalloc
+        if: runner.os == 'Linux'
+        run: sudo apt install libjemalloc-dev
       - name: Run librocksdb-sys tests
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --manifest-path=librocksdb-sys/Cargo.toml
+          args: --manifest-path=librocksdb-sys/Cargo.toml -vvvvv
       - name: Run rocksdb tests
         uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: Run rocksdb tests (jemalloc)
+        if: runner.os == 'Linux'
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features jemalloc
+      - name: Run rocksdb tests (io-uring)
+        if: runner.os == 'Linux'
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features io-uring
+      - name: Run rocksdb tests (portable)
+        if: runner.os == 'Linux'
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features portable
