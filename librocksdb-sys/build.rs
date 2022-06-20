@@ -6,8 +6,14 @@ use std::process::Command;
 fn get_flags_from_detect_platform_script() -> Option<Vec<String>> {
     if !cfg!(target_os = "windows") {
         let mut cmd = Command::new("bash");
+        if cfg!(feature = "static") {
+            cmd.env("LIB_MODE", "static");
+        }
         if cfg!(feature = "portable") {
             cmd.env("PORTABLE", "1");
+        }
+        if cfg!(feature = "io-uring") {
+            cmd.env("ROCKSDB_USE_IO_URING", "1");
         }
 
         let output = cmd
@@ -183,7 +189,6 @@ fn build_rocksdb() {
             config.define("ROCKSDB_PLATFORM_POSIX", None);
             config.define("ROCKSDB_LIB_IO_POSIX", None);
         }
-        config.define("ROCKSDB_SUPPORT_THREAD_LOCAL", None);
         config.flag(&cxx_standard());
     }
 
@@ -237,12 +242,6 @@ fn build_rocksdb() {
 
         if cfg!(feature = "jemalloc") {
             lib_sources.push("port/win/win_jemalloc.cc");
-        }
-    }
-
-    if target.contains("linux") && cfg!(feature = "io-uring") {
-        if pkg_config::probe_library("liburing").is_ok() {
-            config.define("ROCKSDB_IOURING_PRESENT", Some("1"));
         }
     }
 
