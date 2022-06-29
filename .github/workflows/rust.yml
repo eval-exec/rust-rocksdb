@@ -61,9 +61,9 @@ jobs:
         build: [Linux, macOS, windows-2019]
         include:
           - build: Linux
-            os: ubuntu-latest
+            os: ubuntu-22.04
           - build: macOS
-            os: macos-latest
+            os: macos-11
           - build: windows-2019
             os: windows-2019
     steps:
