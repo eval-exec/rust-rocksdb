@@ -63,7 +63,7 @@ jobs:
           - build: Linux
             os: ubuntu-22.04
           - build: macOS
-            os: macos-11
+            os: macos-12
           - build: windows-2019
             os: windows-2019
     steps:
@@ -100,11 +100,13 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt install liburing-dev
       - name: Run librocksdb-sys tests
+        if: runner.os == 'Linux' || runner.os == 'Windows'
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --manifest-path=librocksdb-sys/Cargo.toml -vvvvv
       - name: Run rocksdb tests
+        if: runner.os == 'Linux' || runner.os == 'Windows'
         uses: actions-rs/cargo@v1
         with:
           command: test
@@ -121,8 +123,14 @@ jobs:
           command: test
           args: --features io-uring
       - name: Run rocksdb tests (portable)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' || runner.os == 'macOS'
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --features portable
+      - name: Run rocksdb tests (march-native)
+        if: runner.os == 'Linux'
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features march-native

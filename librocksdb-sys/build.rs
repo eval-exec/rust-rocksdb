@@ -1,3 +1,6 @@
+#[cfg(all(feature = "portable", feature = "march-native"))]
+compile_error!("feature "portable" and feature "march_native" cannot be enabled at the same time");
+
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -14,8 +17,12 @@ fn get_flags_from_detect_platform_script() -> Option<Vec<String>> {
         if cfg!(feature = "static") {
             cmd.env("LIB_MODE", "static");
         }
+
         if cfg!(feature = "portable") {
             cmd.env("PORTABLE", "1");
+        } else if !cfg!(feature = "march-native") {
+            cmd.env("PORTABLE", "1");
+            cmd.env("USE_SSE", "1");
         }
 
         let output = cmd
