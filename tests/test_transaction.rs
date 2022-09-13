@@ -131,6 +131,11 @@ pub fn test_transaction_snapshot() {
         let k1_2 = trans2.get(b"k1").unwrap();
         assert!(k1_2.is_none());
 
+        {
+            let k1_3 = trans2.get_pinned(b"k1").unwrap();
+            assert!(k1_3.is_none());
+        }
+
         trans1.commit().unwrap();
         drop(trans1);
 
@@ -146,8 +151,14 @@ pub fn test_transaction_snapshot() {
 
         assert!(trans3.get(b"k1").unwrap().is_none());
 
-        let k1_3 = trans3.snapshot().get(b"k1").unwrap().unwrap();
-        assert_eq!(&*k1_3, b"v1");
+        {
+            let snapshot = trans3.snapshot();
+            let k1_3 = snapshot.get(b"k1").unwrap().unwrap();
+            assert_eq!(&*k1_3, b"v1");
+
+            let k1_4 = snapshot.get_pinned(b"k1").unwrap().unwrap();
+            assert_eq!(&*k1_4, b"v1");
+        }
 
         trans3.commit().unwrap();
         drop(trans3);

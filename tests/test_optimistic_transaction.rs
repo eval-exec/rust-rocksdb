@@ -14,6 +14,7 @@ fn test_optimistic_transactiondb() {
         let db = OptimisticTransactionDB::open_default(&n).unwrap();
         db.put(b"k1", b"v1").unwrap();
         assert_eq!(db.get(b"k1").unwrap().unwrap().as_ref(), b"v1");
+        assert_eq!(db.get_pinned(b"k1").unwrap().unwrap().as_ref(), b"v1");
     }
 }
 
@@ -179,6 +180,9 @@ pub fn test_optimistic_transaction_cf() {
             let k1 = trans.get_cf(cf_handle, b"k1").unwrap().unwrap();
             assert_eq!(&*k1, b"v1");
 
+            let k1 = trans.get_pinned_cf(cf_handle, b"k1").unwrap().unwrap();
+            assert_eq!(&*k1, b"v1");
+
             trans.delete_cf(cf_handle, b"k1").unwrap();
             trans.commit().unwrap();
         }
@@ -209,6 +213,11 @@ pub fn test_optimistic_transaction_snapshot() {
         let k1_2 = trans2.get(b"k1").unwrap();
         assert!(k1_2.is_none());
 
+        {
+            let k1_3 = trans2.get_pinned(b"k1").unwrap();
+            assert!(k1_3.is_none());
+        }
+
         trans1.commit().unwrap();
 
         trans2.commit().unwrap();
@@ -221,8 +230,14 @@ pub fn test_optimistic_transaction_snapshot() {
 
         assert!(trans3.get(b"k1").unwrap().is_none());
 
-        let k1_3 = trans3.snapshot().get(b"k1").unwrap().unwrap();
-        assert_eq!(&*k1_3, b"v1");
+        {
+            let snapshot = trans3.snapshot();
+            let k1_3 = snapshot.get(b"k1").unwrap().unwrap();
+            assert_eq!(&*k1_3, b"v1");
+
+            let k1_4 = snapshot.get_pinned(b"k1").unwrap().unwrap();
+            assert_eq!(&*k1_4, b"v1");
+        }
 
         trans3.commit().unwrap();
         drop(trans3);

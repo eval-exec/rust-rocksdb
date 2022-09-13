@@ -1,8 +1,9 @@
 use crate::ffi;
 use crate::{
+    ffi_util,
     handle::{ConstHandle, Handle},
     ops::*,
-    ColumnFamily, DBRawIterator, DBVector, Error, ReadOptions,
+    ColumnFamily, DBPinnableSlice, DBRawIterator, DBVector, Error, ReadOptions,
 };
 use libc::{c_char, c_uchar, c_void, size_t};
 use std::marker::PhantomData;
@@ -400,5 +401,106 @@ impl<T: IterateCF> IterateCF for TransactionSnapshot<'_, T> {
         let mut readopts = readopts.to_owned();
         readopts.set_snapshot(self);
         self.db.get_raw_iter_cf(cf_handle, &readopts)
+    }
+}
+
+impl<'a, T> GetPinnedCF<'a> for Transaction<'a, T> {
+    type ColumnFamily = &'a ColumnFamily;
+    type ReadOptions = &'a ReadOptions;
+
+    fn get_pinned_cf_full<K: AsRef<[u8]>>(
+        &'a self,
+        cf: Option<Self::ColumnFamily>,
+        key: K,
+        readopts: Option<Self::ReadOptions>,
+    ) -> Result<Option<DBPinnableSlice<'a>>, Error> {
+        let mut default_readopts = None;
+
+        let ro_handle = ReadOptions::input_or_default(readopts, &mut default_readopts)?;
+
+        let key = key.as_ref();
+        let key_ptr = key.as_ptr() as *const c_char;
+        let key_len = key.len() as size_t;
+
+        unsafe {
+            let mut err: *mut ::libc::c_char = ::std::ptr::null_mut();
+            let val = match cf {
+                Some(cf) => ffi::rocksdb_transaction_get_pinned_cf(
+                    self.handle(),
+                    ro_handle,
+                    cf.handle(),
+                    key_ptr,
+                    key_len,
+                    &mut err,
+                ),
+                None => ffi::rocksdb_transaction_get_pinned(
+                    self.handle(),
+                    ro_handle,
+                    key_ptr,
+                    key_len,
+                    &mut err,
+                ),
+            };
+
+            if !err.is_null() {
+                return Err(Error::new(ffi_util::error_message(err)));
+            }
+
+            if val.is_null() {
+                Ok(None)
+            } else {
+                Ok(Some(DBPinnableSlice::from_c(val)))
+            }
+        }
+    }
+}
+
+impl<'a, T> GetPinnedCF<'a> for TransactionSnapshot<'a, T> {
+    type ColumnFamily = &'a ColumnFamily;
+    type ReadOptions = &'a ReadOptions;
+
+    fn get_pinned_cf_full<K: AsRef<[u8]>>(
+        &'a self,
+        cf: Option<Self::ColumnFamily>,
+        key: K,
+        readopts: Option<Self::ReadOptions>,
+    ) -> ::std::result::Result<Option<DBPinnableSlice<'a>>, Error> {
+        let mut ro = readopts.cloned().unwrap_or_default();
+        ro.set_snapshot(self);
+
+        let key = key.as_ref();
+        let key_ptr = key.as_ptr() as *const c_char;
+        let key_len = key.len() as size_t;
+
+        unsafe {
+            let mut err: *mut ::libc::c_char = ::std::ptr::null_mut();
+            let val = match cf {
+                Some(cf) => ffi::rocksdb_transaction_get_pinned_cf(
+                    self.db.handle(),
+                    ro.handle(),
+                    cf.handle(),
+                    key_ptr,
+                    key_len,
+                    &mut err,
+                ),
+                None => ffi::rocksdb_transaction_get_pinned(
+                    self.db.handle(),
+                    ro.handle(),
+                    key_ptr,
+                    key_len,
+                    &mut err,
+                ),
+            };
+
+            if !err.is_null() {
+                return Err(Error::new(ffi_util::error_message(err)));
+            }
+
+            if val.is_null() {
+                Ok(None)
+            } else {
+                Ok(Some(DBPinnableSlice::from_c(val)))
+            }
+        }
     }
 }
