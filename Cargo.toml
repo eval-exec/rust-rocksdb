@@ -38,3 +38,8 @@ tempfile = "3"
 
 [dev-dependencies]
 trybuild = "1.0"
+criterion = "0.4"
+
+[[bench]]
+name = "transaction"
+harness = false
