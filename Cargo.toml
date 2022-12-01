@@ -14,7 +14,8 @@ exclude = [
     "snappy/testdata",
     "*/examples",
     "test/**/*",
-    "*.md"
+    "*.md",
+    "benches",
 ]
 
 [features]
@@ -33,8 +34,13 @@ march-native = ["librocksdb-sys/march-native"]
 
 [dependencies]
 libc = "0.2"
-librocksdb-sys = { package = "ckb-librocksdb-sys", path = "librocksdb-sys", version = "=7.5.3" }
+librocksdb-sys = { package = "ckb-librocksdb-sys", path = "librocksdb-sys", version = "=7.7.3" }
 tempfile = "3"
 
 [dev-dependencies]
 trybuild = "1.0"
+criterion = "0.4"
+
+[[bench]]
+name = "transaction"
+harness = false
