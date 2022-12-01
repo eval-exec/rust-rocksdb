@@ -12,6 +12,18 @@ keywords = [ "ffi", "rocksdb" ]
 build = "build.rs"
 links = "rocksdb"
 
+exclude = [
+    ".gitignore",
+    "*.yml",
+    "snappy/testdata",
+    "*/doc",
+    "*/docs",
+    "*/examples",
+    "*/tests",
+    "tests",
+    "*.md",
+]
+
 [features]
 default = [ "static" ]
 portable = []
