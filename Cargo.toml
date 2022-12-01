@@ -10,10 +10,7 @@ homepage = "https://github.com/nervosnetwork/rust-rocksdb"
 exclude = [
     ".gitignore",
     "*.yml",
-    "deploy.sh",
-    "snappy/testdata",
-    "*/examples",
-    "test/**/*",
+    "tests",
     "*.md",
     "benches",
 ]
