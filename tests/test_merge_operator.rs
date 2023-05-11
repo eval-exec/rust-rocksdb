@@ -329,7 +329,12 @@ fn failed_merge_test() {
             val.map(|v| v.to_vec())
         ),
         Err(e) => {
-            assert!(e.into_string().contains("Could not perform merge."));
+            let msg = e.into_string();
+            assert!(
+                msg.contains("Merge operator failed"),
+                "unexpected merge error message: {}",
+                msg
+            );
         }
     }
 }

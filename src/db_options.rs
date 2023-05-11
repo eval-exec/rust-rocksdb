@@ -31,19 +31,16 @@ use crate::merge_operator::{
     self, full_merge_callback, partial_merge_callback, MergeFn, MergeOperatorCallback,
 };
 use crate::slice_transform::SliceTransform;
-
-pub fn new_cache(capacity: size_t) -> *mut ffi::rocksdb_cache_t {
-    unsafe { ffi::rocksdb_cache_create_lru(capacity) }
-}
+use std::ptr::NonNull;
 
 pub(crate) struct CacheWrapper {
-    pub(crate) inner: *mut ffi::rocksdb_cache_t,
+    pub(crate) inner: NonNull<ffi::rocksdb_cache_t>,
 }
 
 impl Drop for CacheWrapper {
     fn drop(&mut self) {
         unsafe {
-            ffi::rocksdb_cache_destroy(self.inner);
+            ffi::rocksdb_cache_destroy(self.inner.as_ptr());
         }
     }
 }
@@ -52,30 +49,55 @@ impl Drop for CacheWrapper {
 pub struct Cache(pub(crate) Arc<CacheWrapper>);
 
 impl Cache {
-    /// Create a lru cache with capacity
-    pub fn new_lru_cache(capacity: size_t) -> Result<Cache, Error> {
-        let cache = new_cache(capacity);
-        if cache.is_null() {
-            Err(Error::new("Could not create Cache".to_owned()))
-        } else {
-            Ok(Cache(Arc::new(CacheWrapper { inner: cache })))
-        }
+    /// Creates an LRU cache with capacity in bytes.
+    pub fn new_lru_cache(capacity: size_t) -> Cache {
+        let inner = NonNull::new(unsafe { ffi::rocksdb_cache_create_lru(capacity) }).unwrap();
+        Cache(Arc::new(CacheWrapper { inner }))
+    }
+
+    /// Creates a HyperClockCache with capacity in bytes.
+    ///
+    /// `estimated_entry_charge` is an important tuning parameter. The optimal
+    /// choice at any given time is
+    /// `(cache.get_usage() - 64 * cache.get_table_address_count()) /
+    /// cache.get_occupancy_count()`, or approximately `cache.get_usage() /
+    /// cache.get_occupancy_count()`.
+    ///
+    /// However, the value cannot be changed dynamically, so as the cache
+    /// composition changes at runtime, the following tradeoffs apply:
+    ///
+    /// * If the estimate is substantially too high (e.g., 25% higher),
+    ///   the cache may have to evict entries to prevent load factors that
+    ///   would dramatically affect lookup times.
+    /// * If the estimate is substantially too low (e.g., less than half),
+    ///   then meta data space overhead is substantially higher.
+    ///
+    /// The latter is generally preferable, and picking the larger of
+    /// block size and meta data block size is a reasonable choice that
+    /// errs towards this side.
+    pub fn new_hyper_clock_cache(capacity: size_t, estimated_entry_charge: size_t) -> Cache {
+        Cache(Arc::new(CacheWrapper {
+            inner: NonNull::new(unsafe {
+                ffi::rocksdb_cache_create_hyper_clock(capacity, estimated_entry_charge)
+            })
+            .unwrap(),
+        }))
     }
 
     /// Returns the Cache memory usage
     pub fn get_usage(&self) -> usize {
-        unsafe { ffi::rocksdb_cache_get_usage(self.0.inner) }
+        unsafe { ffi::rocksdb_cache_get_usage(self.0.inner.as_ptr()) }
     }
 
     /// Returns pinned memory usage
     pub fn get_pinned_usage(&self) -> usize {
-        unsafe { ffi::rocksdb_cache_get_pinned_usage(self.0.inner) }
+        unsafe { ffi::rocksdb_cache_get_pinned_usage(self.0.inner.as_ptr()) }
     }
 
     /// Sets cache capacity
     pub fn set_capacity(&mut self, capacity: size_t) {
         unsafe {
-            ffi::rocksdb_cache_set_capacity(self.0.inner, capacity);
+            ffi::rocksdb_cache_set_capacity(self.0.inner.as_ptr(), capacity);
         }
     }
 }
@@ -224,14 +246,12 @@ impl OptionsMustOutliveDB {
 #[derive(Default)]
 pub(crate) struct BlockBasedOptionsMustOutliveDB {
     block_cache: Option<Cache>,
-    block_cache_compressed: Option<Cache>,
 }
 
 impl BlockBasedOptionsMustOutliveDB {
     fn clone(&self) -> Self {
         Self {
             block_cache: self.block_cache.as_ref().map(Cache::clone),
-            block_cache_compressed: self.block_cache_compressed.as_ref().map(Cache::clone),
         }
     }
 }
@@ -512,19 +532,9 @@ impl BlockBasedOptions {
     /// By default, rocksdb will automatically create and use an 8MB internal cache.
     pub fn set_block_cache(&mut self, cache: &Cache) {
         unsafe {
-            ffi::rocksdb_block_based_options_set_block_cache(self.inner, cache.0.inner);
+            ffi::rocksdb_block_based_options_set_block_cache(self.inner, cache.0.inner.as_ptr());
         }
         self.outlive.block_cache = Some(cache.clone());
-    }
-
-    /// Sets global cache for compressed blocks. Cache must outlive DB instance which uses it.
-    ///
-    /// By default, rocksdb will not use a compressed block cache.
-    pub fn set_block_cache_compressed(&mut self, cache: &Cache) {
-        unsafe {
-            ffi::rocksdb_block_based_options_set_block_cache_compressed(self.inner, cache.0.inner);
-        }
-        self.outlive.block_cache_compressed = Some(cache.clone());
     }
 
     /// Disable block cache
@@ -2859,7 +2869,7 @@ impl Options {
     /// Not supported in ROCKSDB_LITE mode!
     pub fn set_row_cache(&mut self, cache: &Cache) {
         unsafe {
-            ffi::rocksdb_options_set_row_cache(self.inner, cache.0.inner);
+            ffi::rocksdb_options_set_row_cache(self.inner, cache.0.inner.as_ptr());
         }
         self.outlive.row_cache = Some(cache.clone());
     }
@@ -3226,6 +3236,17 @@ impl ReadOptions {
             ffi::rocksdb_readoptions_set_readahead_size(self.inner, v as size_t);
         }
         self.option_set_readahead_size = Some(v);
+    }
+
+    /// Asynchronously prefetch some data.
+    ///
+    /// Used for sequential reads and internal automatic prefetching.
+    ///
+    /// Default: `false`
+    pub fn set_async_io(&mut self, v: bool) {
+        unsafe {
+            ffi::rocksdb_readoptions_set_async_io(self.inner, c_uchar::from(v));
+        }
     }
 
     pub fn input_or_default(

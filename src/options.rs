@@ -39,8 +39,7 @@ impl FullOptions {
             "Failed to convert path to CString when load config file.",
         )?;
 
-        let cache = cache_size
-            .map(|cache_size| Cache::new_lru_cache(cache_size).expect("create RocksDB cache"));
+        let cache = cache_size.map(Cache::new_lru_cache);
 
         unsafe {
             let env = ffi::rocksdb_create_default_env();
@@ -50,7 +49,7 @@ impl FullOptions {
                 ignore_unknown_options,
                 cache
                     .as_ref()
-                    .map(|c| c.0.inner)
+                    .map(|c| c.0.inner.as_ptr())
                     .unwrap_or_else(|| ffi::rocksdb_null_cache()),
             ));
             ffi::rocksdb_env_destroy(env);
