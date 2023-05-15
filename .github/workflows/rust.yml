@@ -53,6 +53,21 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+
+  valgrind:
+    name: valgrind
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt update && sudo apt install -y valgrind
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: run test
+        working-directory: librocksdb-sys
+        run: make test
+
+
   test:
     name: ${{ matrix.build }}
     runs-on: ${{ matrix.os }}
