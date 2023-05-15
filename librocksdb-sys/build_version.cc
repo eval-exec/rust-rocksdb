@@ -8,12 +8,10 @@
 
 // The build script may replace these values with real values based
 // on whether or not GIT is available and the platform settings
-static const std::string rocksdb_build_git_sha  = "rocksdb_build_git_sha:eb9a80fe1f18017b4d7f4084e8f2554f12234822";
-static const std::string rocksdb_build_git_tag = "rocksdb_build_git_tag:v7.7.3";
-static const std::string rocksdb_build_date = "rocksdb_build_date:2022-11-30 15:49:28";
+static const std::string rocksdb_build_git_sha  = "rocksdb_build_git_sha:6a436150417120a3f9732d65a2a5c2b8d19b60fc";
+static const std::string rocksdb_build_git_tag = "rocksdb_build_git_tag:v8.1.1";
+static const std::string rocksdb_build_date = "rocksdb_build_date:2023-04-06 09:38:52";
 
-
-#ifndef ROCKSDB_LITE
 extern "C" {
 
 } // extern "C"
@@ -21,7 +19,10 @@ extern "C" {
 std::unordered_map<std::string, ROCKSDB_NAMESPACE::RegistrarFunc> ROCKSDB_NAMESPACE::ObjectRegistry::builtins_ = {
 
 };
-#endif //ROCKSDB_LITE
+
+extern "C" bool RocksDbIOUringEnable() {
+  return true;
+}
 
 namespace ROCKSDB_NAMESPACE {
 static void AddProperty(std::unordered_map<std::string, std::string> *props, const std::string& name) {

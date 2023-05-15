@@ -82,12 +82,16 @@ extern "C" {
         rocksdb_options_t* db_opts = new rocksdb_options_t;
         std::vector<ColumnFamilyDescriptor> cf_descs_tmp;
 
+        rocksdb::ConfigOptions config_opt;
+        config_opt.ignore_unknown_options = ignore_unknown_options;
+        config_opt.input_strings_escaped = true;
+        config_opt.env = env->rep;
+
         Status status = rocksdb::LoadOptionsFromFile(
+            config_opt,
             std::string(config_file),
-            env->rep,
             &db_opts->rep,
             &cf_descs_tmp,
-            ignore_unknown_options,
             &cache->rep);
         if (status.ok()) {
             rocksdb_column_family_descriptors_t* cf_descs = new rocksdb_column_family_descriptors_t;
