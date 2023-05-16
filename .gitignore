@@ -10,3 +10,4 @@ path
 .DS_Store
 .idea
 .vscode
+librocksdb-sys/test.o
