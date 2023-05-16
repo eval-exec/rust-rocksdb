@@ -29,6 +29,7 @@ mod compact;
 mod flush;
 mod ingest_external_file;
 mod iter;
+mod multi_get;
 mod property;
 mod setoptions;
 mod transaction;
@@ -38,6 +39,7 @@ pub use self::get::{Get, GetCF};
 pub use self::get_pinned::{GetPinned, GetPinnedCF};
 pub use self::ingest_external_file::{IngestExternalFile, IngestExternalFileCF};
 pub use self::merge::{Merge, MergeCF};
+pub use self::multi_get::{convert_values, BatchedMultiGetCF, CFAndKey, MultiGet, MultiGetCF};
 pub use self::put::{Put, PutCF};
 pub use self::writebatch::WriteOps;
 
