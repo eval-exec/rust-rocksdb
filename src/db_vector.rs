@@ -39,7 +39,7 @@ impl Deref for DBVector {
 impl AsRef<[u8]> for DBVector {
     fn as_ref(&self) -> &[u8] {
         // Implement this via Deref so as not to repeat ourselves
-        &*self
+        self
     }
 }
 
@@ -69,7 +69,7 @@ impl DBVector {
     pub unsafe fn from_c(val: *mut u8, val_len: size_t) -> DBVector {
         DBVector {
             base: val,
-            len: val_len as usize,
+            len: val_len,
         }
     }
 

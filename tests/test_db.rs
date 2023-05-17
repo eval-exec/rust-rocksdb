@@ -201,7 +201,7 @@ fn set_option_cf_test() {
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
-        let db = DB::open_cf(&opts, &path, &["cf1"]).unwrap();
+        let db = DB::open_cf(&opts, &path, ["cf1"]).unwrap();
         let cf1 = db.cf_handle("cf1").unwrap();
         // set an option to valid values
         assert!(db
@@ -240,7 +240,7 @@ fn test_open_utf8_path() {
     let tmp = TemporaryDBPath::new();
     let path = tmp.join("_rust_rocksdb_utf8_path_temporärer_Ordner");
     {
-        let db = DB::open_default(&path).unwrap();
+        let db = DB::open_default(path).unwrap();
 
         assert!(db.put(b"k1", b"v1111").is_ok());
 
