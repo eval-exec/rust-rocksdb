@@ -369,6 +369,44 @@ where
     }
 }
 
+impl<'a, T> MultiGet<ReadOptions> for TransactionSnapshot<'a, T>
+where
+    Transaction<'a, T>: MultiGet<ReadOptions>,
+{
+    fn multi_get_full<K, I>(
+        &self,
+        keys: I,
+        readopts: Option<&ReadOptions>,
+    ) -> Vec<Result<Option<DBVector>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = K>,
+    {
+        let mut ro = readopts.cloned().unwrap_or_default();
+        ro.set_snapshot(self);
+        self.db.multi_get_full(keys, Some(&ro))
+    }
+}
+
+impl<'a, T> MultiGetCF<ReadOptions> for TransactionSnapshot<'a, T>
+where
+    Transaction<'a, T>: MultiGet<ReadOptions>,
+{
+    fn multi_get_cf_full<'m, K, I>(
+        &self,
+        keys: I,
+        readopts: Option<&ReadOptions>,
+    ) -> Vec<Result<Option<DBVector>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = (&'m ColumnFamily, K)>,
+    {
+        let mut ro = readopts.cloned().unwrap_or_default();
+        ro.set_snapshot(self);
+        self.db.multi_get_cf_full(keys, Some(&ro))
+    }
+}
+
 impl<'a, T> PutCF<()> for Transaction<'a, T> {
     fn put_cf_full<K, V>(
         &self,
