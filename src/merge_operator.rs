@@ -91,10 +91,7 @@ pub unsafe extern "C" fn delete_callback(
     value_length: size_t,
 ) {
     if !value.is_null() {
-        let _ = Box::from_raw(slice::from_raw_parts_mut(
-            value as *mut u8,
-            value_length,
-        ));
+        let _ = Box::from_raw(slice::from_raw_parts_mut(value as *mut u8, value_length));
     }
 }
 
