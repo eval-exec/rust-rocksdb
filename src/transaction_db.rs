@@ -631,6 +631,40 @@ impl<'a> GetCF<ReadOptions> for Snapshot<'a> {
     }
 }
 
+impl<'a> MultiGet<ReadOptions> for Snapshot<'a> {
+    fn multi_get_full<K, I>(
+        &self,
+        keys: I,
+        readopts: Option<&ReadOptions>,
+    ) -> Vec<Result<Option<DBVector>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = K>,
+    {
+        let mut ro = readopts.cloned().unwrap_or_default();
+        ro.set_snapshot(self);
+
+        self.db.multi_get_full(keys, Some(&ro))
+    }
+}
+
+impl<'a> MultiGetCF<ReadOptions> for Snapshot<'a> {
+    fn multi_get_cf_full<'m, K, I>(
+        &self,
+        keys: I,
+        readopts: Option<&ReadOptions>,
+    ) -> Vec<Result<Option<DBVector>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = (&'m ColumnFamily, K)>,
+    {
+        let mut ro = readopts.cloned().unwrap_or_default();
+        ro.set_snapshot(self);
+
+        self.db.multi_get_cf_full(keys, Some(&ro))
+    }
+}
+
 impl<'a> Drop for Snapshot<'a> {
     fn drop(&mut self) {
         unsafe {
