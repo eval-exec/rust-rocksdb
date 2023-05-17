@@ -331,6 +331,111 @@ impl GetCF<ReadOptions> for TransactionDB {
     }
 }
 
+impl MultiGet<ReadOptions> for TransactionDB {
+    fn multi_get_full<K, I>(
+        &self,
+        keys: I,
+        readopts: Option<&ReadOptions>,
+    ) -> Vec<Result<Option<DBVector>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = K>,
+    {
+        let mut default_readopts = None;
+        let ro_handle = match ReadOptions::input_or_default(readopts, &mut default_readopts) {
+            Ok(ro) => ro,
+            Err(e) => {
+                let key_count = keys.into_iter().count();
+
+                return vec![e; key_count]
+                    .iter()
+                    .map(|e| Err(e.to_owned()))
+                    .collect();
+            }
+        };
+
+        let (keys, keys_sizes): (Vec<Box<[u8]>>, Vec<_>) = keys
+            .into_iter()
+            .map(|k| (Box::from(k.as_ref()), k.as_ref().len()))
+            .unzip();
+        let ptr_keys: Vec<_> = keys.iter().map(|k| k.as_ptr() as *const c_char).collect();
+
+        let mut values = vec![ptr::null_mut(); keys.len()];
+        let mut values_sizes = vec![0_usize; keys.len()];
+        let mut errors = vec![ptr::null_mut(); keys.len()];
+        unsafe {
+            ffi::rocksdb_transactiondb_multi_get(
+                self.inner,
+                ro_handle,
+                ptr_keys.len(),
+                ptr_keys.as_ptr(),
+                keys_sizes.as_ptr(),
+                values.as_mut_ptr(),
+                values_sizes.as_mut_ptr(),
+                errors.as_mut_ptr(),
+            );
+        }
+
+        convert_values(values, values_sizes, errors)
+    }
+}
+
+impl MultiGetCF<ReadOptions> for TransactionDB {
+    fn multi_get_cf_full<'a, K, I>(
+        &self,
+        keys: I,
+        readopts: Option<&ReadOptions>,
+    ) -> Vec<Result<Option<DBVector>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = (&'a ColumnFamily, K)>,
+    {
+        let mut default_readopts = None;
+        let ro_handle = match ReadOptions::input_or_default(readopts, &mut default_readopts) {
+            Ok(ro) => ro,
+            Err(e) => {
+                let key_count = keys.into_iter().count();
+
+                return vec![e; key_count]
+                    .iter()
+                    .map(|e| Err(e.to_owned()))
+                    .collect();
+            }
+        };
+        let (cfs_and_keys, keys_sizes): (Vec<CFAndKey>, Vec<_>) = keys
+            .into_iter()
+            .map(|(cf, key)| ((cf, Box::from(key.as_ref())), key.as_ref().len()))
+            .unzip();
+        let ptr_keys: Vec<_> = cfs_and_keys
+            .iter()
+            .map(|(_, k)| k.as_ptr() as *const c_char)
+            .collect();
+        let ptr_cfs: Vec<_> = cfs_and_keys
+            .iter()
+            .map(|(c, _)| c.inner as *const _)
+            .collect();
+
+        let mut values = vec![ptr::null_mut(); ptr_keys.len()];
+        let mut values_sizes = vec![0_usize; ptr_keys.len()];
+        let mut errors = vec![ptr::null_mut(); ptr_keys.len()];
+        unsafe {
+            ffi::rocksdb_transactiondb_multi_get_cf(
+                self.inner,
+                ro_handle,
+                ptr_cfs.as_ptr(),
+                ptr_keys.len(),
+                ptr_keys.as_ptr(),
+                keys_sizes.as_ptr(),
+                values.as_mut_ptr(),
+                values_sizes.as_mut_ptr(),
+                errors.as_mut_ptr(),
+            );
+        }
+
+        convert_values(values, values_sizes, errors)
+    }
+}
+
 impl PutCF<WriteOptions> for TransactionDB {
     fn put_cf_full<K, V>(
         &self,
