@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-use crate::{ffi, ColumnFamily, DBVector};
+use crate::{ffi, ColumnFamily, DBPinnableSlice, DBVector};
 use libc::c_char;
 use std::ptr;
 
@@ -187,6 +187,114 @@ where
         }
 
         convert_values(values, values_sizes, errors)
+    }
+}
+
+pub trait BatchedMultiGetCF<R> {
+    fn batched_multi_get_cf_full<K, I>(
+        &self,
+        cf: &ColumnFamily,
+        keys: I,
+        sorted_input: bool,
+        readopts: Option<&R>,
+    ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = K>;
+
+    fn batched_multi_get_cf<K, I>(
+        &self,
+        cf: &ColumnFamily,
+        keys: I,
+        sorted_input: bool,
+    ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = K>,
+    {
+        self.batched_multi_get_cf_full(cf, keys, sorted_input, None)
+    }
+
+    fn batched_multi_get_cf_opt<K, I>(
+        &self,
+        cf: &ColumnFamily,
+        keys: I,
+        sorted_input: bool,
+        readopts: &R,
+    ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = K>,
+    {
+        self.batched_multi_get_cf_full(cf, keys, sorted_input, Some(readopts))
+    }
+}
+
+impl<T> BatchedMultiGetCF<ReadOptions> for T
+where
+    T: Handle<ffi::rocksdb_t> + super::Read,
+{
+    fn batched_multi_get_cf_full<K, I>(
+        &self,
+        cf: &ColumnFamily,
+        keys: I,
+        sorted_input: bool,
+        readopts: Option<&ReadOptions>,
+    ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
+    where
+        K: AsRef<[u8]>,
+        I: IntoIterator<Item = K>,
+    {
+        let mut default_readopts = None;
+        let ro_handle = match ReadOptions::input_or_default(readopts, &mut default_readopts) {
+            Ok(ro) => ro,
+            Err(e) => {
+                let key_count = keys.into_iter().count();
+
+                return vec![e; key_count]
+                    .iter()
+                    .map(|e| Err(e.to_owned()))
+                    .collect();
+            }
+        };
+
+        let (keys, keys_sizes): (Vec<Box<[u8]>>, Vec<_>) = keys
+            .into_iter()
+            .map(|k| (Box::from(k.as_ref()), k.as_ref().len()))
+            .unzip();
+        let ptr_keys: Vec<_> = keys.iter().map(|k| k.as_ptr() as *const c_char).collect();
+
+        let mut pinned_values = vec![ptr::null_mut(); ptr_keys.len()];
+        let mut errors = vec![ptr::null_mut(); ptr_keys.len()];
+
+        unsafe {
+            ffi::rocksdb_batched_multi_get_cf(
+                self.handle(),
+                ro_handle,
+                cf.inner,
+                ptr_keys.len(),
+                ptr_keys.as_ptr(),
+                keys_sizes.as_ptr(),
+                pinned_values.as_mut_ptr(),
+                errors.as_mut_ptr(),
+                sorted_input,
+            );
+            pinned_values
+                .into_iter()
+                .zip(errors.into_iter())
+                .map(|(v, e)| {
+                    if e.is_null() {
+                        if v.is_null() {
+                            Ok(None)
+                        } else {
+                            Ok(Some(DBPinnableSlice::from_c(v)))
+                        }
+                    } else {
+                        Err(Error::new(crate::ffi_util::error_message(e)))
+                    }
+                })
+                .collect()
+        }
     }
 }
 
