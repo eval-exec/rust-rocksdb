@@ -239,7 +239,7 @@ fn counting_merge_test() {
     h3.join().unwrap();
     h1.join().unwrap();
     match db.get(b"k2") {
-        Ok(Some(value)) => match from_slice::<ValueCounts>(&*value) {
+        Ok(Some(value)) => match from_slice::<ValueCounts>(&value) {
             Some(v) => {
                 let num_a = {
                     let ptr = std::ptr::addr_of!(v.num_a);
@@ -271,7 +271,7 @@ fn counting_merge_test() {
         _ => panic!("value not present"),
     }
     match db.get(b"k1") {
-        Ok(Some(value)) => match from_slice::<ValueCounts>(&*value) {
+        Ok(Some(value)) => match from_slice::<ValueCounts>(&value) {
             Some(v) => {
                 let num_a = {
                     let ptr = std::ptr::addr_of!(v.num_a);

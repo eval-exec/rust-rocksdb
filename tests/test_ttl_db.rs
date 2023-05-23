@@ -25,7 +25,7 @@ fn open_ttl_db_cf() {
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
-        let db = DBWithTTL::open_cf(&opts, &path, &["cf1"]).unwrap();
+        let db = DBWithTTL::open_cf(&opts, &path, ["cf1"]).unwrap();
         let cf1 = db.cf_handle("cf1").unwrap();
 
         assert!(db.put_cf(cf1, b"k1", b"v1111").is_ok());

@@ -82,7 +82,7 @@ where
             .iter()
             .map(|path| {
                 to_cpath(
-                    &path,
+                    path,
                     "Failed to convert path to CString when IngestExternalFile.",
                 )
             })

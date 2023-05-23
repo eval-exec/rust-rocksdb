@@ -166,7 +166,7 @@ pub fn test_optimistic_transaction_cf() {
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
-        let mut db = OptimisticTransactionDB::open_cf(&opts, &path, &["cf1"]).unwrap();
+        let mut db = OptimisticTransactionDB::open_cf(&opts, &path, ["cf1"]).unwrap();
         {
             let cf_handle = db.cf_handle("cf1").unwrap();
             let write_options = WriteOptions::default();

@@ -56,7 +56,7 @@ impl WriteBatch {
         unsafe {
             let mut batch_size: size_t = 0;
             ffi::rocksdb_writebatch_data(self.inner, &mut batch_size);
-            batch_size as usize
+            batch_size
         }
     }
 

@@ -342,8 +342,8 @@ fn iterator_test() {
         for (k, v) in iter {
             println!(
                 "Hello {}: {}",
-                str::from_utf8(&*k).unwrap(),
-                str::from_utf8(&*v).unwrap()
+                str::from_utf8(&k).unwrap(),
+                str::from_utf8(&v).unwrap()
             );
         }
     }
