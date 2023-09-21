@@ -46,7 +46,7 @@ impl AsRef<[u8]> for DBVector {
 impl Drop for DBVector {
     fn drop(&mut self) {
         unsafe {
-            libc::free(self.base as *mut c_void);
+            ffi::rocksdb_free(self.base as *mut c_void);
         }
     }
 }
