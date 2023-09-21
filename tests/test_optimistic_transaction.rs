@@ -339,3 +339,225 @@ fn sync_transaction_test() {
         assert!(handler_2.join().unwrap());
     }
 }
+
+#[test]
+pub fn test_optimistic_transaction_multi_get() {
+    let n = TemporaryDBPath::new();
+    {
+        let db = OptimisticTransactionDB::open_default(&n).unwrap();
+
+        let trans = db.transaction_default();
+
+        trans.put(b"k1", b"v1").unwrap();
+        trans.put(b"k2", b"v2").unwrap();
+        trans.put(b"k3", b"v3").unwrap();
+        trans.put(b"k4", b"v4").unwrap();
+
+        let trans_result = trans.commit();
+
+        assert!(trans_result.is_ok());
+
+        let values = trans
+            .multi_get([b"k0", b"k1", b"k2", b"k3", b"k4"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+        assert_eq!(values[0], None);
+        assert_eq!(values[1], Some(b"v1".to_vec()));
+        assert_eq!(values[2], Some(b"v2".to_vec()));
+        assert_eq!(values[3], Some(b"v3".to_vec()));
+        assert_eq!(values[4], Some(b"v4".to_vec()));
+    }
+}
+
+#[test]
+pub fn test_optimistic_transaction_multi_get_cf() {
+    let path = TemporaryDBPath::new();
+    {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+        let mut db = OptimisticTransactionDB::open_cf(&opts, &path, ["cf0", "cf1"]).unwrap();
+        {
+            let cf_handle0 = db.cf_handle("cf0").unwrap();
+            let cf_handle1 = db.cf_handle("cf1").unwrap();
+            let write_options = WriteOptions::default();
+            let optimistic_transaction_options = OptimisticTransactionOptions::new();
+
+            let trans = db.transaction(&write_options, &optimistic_transaction_options);
+
+            trans.put_cf(cf_handle0, b"k1", b"v1").unwrap();
+            trans.put_cf(cf_handle0, b"k2", b"v2").unwrap();
+            trans.put_cf(cf_handle0, b"k3", b"v3").unwrap();
+            trans.put_cf(cf_handle0, b"k4", b"v4").unwrap();
+
+            trans.put_cf(cf_handle1, b"k1'", b"v1'").unwrap();
+            trans.put_cf(cf_handle1, b"k2'", b"v2'").unwrap();
+            trans.put_cf(cf_handle1, b"k3'", b"v3'").unwrap();
+            trans.put_cf(cf_handle1, b"k4'", b"v4'").unwrap();
+            trans.commit().unwrap();
+
+            let values = trans
+                .multi_get_cf(vec![
+                    (cf_handle0, b"k0_not_exist".as_slice()),
+                    (cf_handle0, b"k1"),
+                    (cf_handle0, b"k2"),
+                    (cf_handle0, b"k3"),
+                    (cf_handle0, b"k4"),
+                    (cf_handle0, b"k5_not_exist"),
+                    (cf_handle1, b"k0_not_exist'"),
+                    (cf_handle1, b"k1'"),
+                    (cf_handle1, b"k2'"),
+                    (cf_handle1, b"k3'"),
+                    (cf_handle1, b"k4'"),
+                    (cf_handle1, b"k5_not_exist'"),
+                ])
+                .into_iter()
+                .map(Result::unwrap)
+                .map(|v| v.map(|v| v.to_vec()))
+                .collect::<Vec<_>>();
+            assert_eq!(values.len(), 12);
+
+            assert_eq!(values[0], None);
+            assert_eq!(values[1], Some(b"v1".to_vec()));
+            assert_eq!(values[2], Some(b"v2".to_vec()));
+            assert_eq!(values[3], Some(b"v3".to_vec()));
+            assert_eq!(values[4], Some(b"v4".to_vec()));
+            assert_eq!(values[5], None);
+
+            assert_eq!(values[6], None);
+            assert_eq!(values[7], Some(b"v1'".to_vec()));
+            assert_eq!(values[8], Some(b"v2'".to_vec()));
+            assert_eq!(values[9], Some(b"v3'".to_vec()));
+            assert_eq!(values[10], Some(b"v4'".to_vec()));
+            assert_eq!(values[11], None);
+        }
+
+        db.drop_cf("cf0").unwrap();
+        db.drop_cf("cf1").unwrap();
+    }
+}
+
+#[test]
+fn multi_get() {
+    let path = TemporaryDBPath::new();
+
+    {
+        let db: OptimisticTransactionDB = OptimisticTransactionDB::open_default(&path).unwrap();
+        let initial_snap = db.snapshot();
+        db.put(b"k1", b"v1").unwrap();
+        let k1_snap = db.snapshot();
+        db.put(b"k2", b"v2").unwrap();
+
+        let _ = db.multi_get([b"k0"; 40]);
+
+        let assert_values = |values: Vec<_>| {
+            assert_eq!(3, values.len());
+            assert_eq!(values[0], None);
+            assert_eq!(values[1], Some(b"v1".to_vec()));
+            assert_eq!(values[2], Some(b"v2".to_vec()));
+        };
+
+        let values = db
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_values(values);
+
+        let values = db
+            .multi_get_opt([b"k0", b"k1", b"k2"], &Default::default())
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_values(values);
+
+        let values = db
+            .snapshot()
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_values(values);
+
+        let none_values = initial_snap
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(none_values, vec![None; 3]);
+
+        let k1_only = k1_snap
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(k1_only, vec![None, Some(b"v1".to_vec()), None]);
+
+        let txn = db.transaction_default();
+        let values = txn
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_values(values);
+    }
+}
+
+#[test]
+fn multi_get_cf() {
+    let path = TemporaryDBPath::new();
+
+    {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+        let db: OptimisticTransactionDB =
+            OptimisticTransactionDB::open_cf(&opts, &path, ["cf0", "cf1", "cf2"]).unwrap();
+
+        let cf0 = db.cf_handle("cf0").unwrap();
+
+        let cf1 = db.cf_handle("cf1").unwrap();
+        db.put_cf(cf1, b"k1", b"v1").unwrap();
+
+        let cf2 = db.cf_handle("cf2").unwrap();
+        db.put_cf(cf2, b"k2", b"v2").unwrap();
+
+        let values = db
+            .multi_get_cf(vec![(cf0, b"k0"), (cf1, b"k1"), (cf2, b"k2")])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+        assert_eq!(3, values.len());
+        assert_eq!(values[0], None);
+        assert_eq!(values[1], Some(b"v1".to_vec()));
+        assert_eq!(values[2], Some(b"v2".to_vec()));
+
+        let txn = db.transaction_default();
+        let values = txn
+            .multi_get_cf(vec![(cf0, b"k0"), (cf1, b"k1"), (cf2, b"k2")])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(3, values.len());
+        assert_eq!(values[0], None);
+        assert_eq!(values[1], Some(b"v1".to_vec()));
+        assert_eq!(values[2], Some(b"v2".to_vec()));
+    }
+}

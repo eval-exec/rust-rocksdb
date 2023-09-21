@@ -250,3 +250,133 @@ fn test_open_utf8_path() {
         assert!(db.get(b"k1").unwrap().is_none());
     }
 }
+
+#[test]
+fn multi_get() {
+    let tmp = TemporaryDBPath::new();
+    let path = tmp.join("_rust_rocksdb_multi_get");
+
+    {
+        let db = DB::open_default(path).unwrap();
+        let initial_snap = db.snapshot();
+        db.put(b"k1", b"v1").unwrap();
+        let k1_snap = db.snapshot();
+        db.put(b"k2", b"v2").unwrap();
+
+        let _ = db.multi_get([b"k0"; 40]);
+
+        let assert_values = |values: Vec<_>| {
+            assert_eq!(3, values.len());
+            assert_eq!(values[0], None);
+            assert_eq!(values[1], Some(b"v1".to_vec()));
+            assert_eq!(values[2], Some(b"v2".to_vec()));
+        };
+
+        let values = db
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_values(values);
+
+        let values = db
+            .multi_get_opt([b"k0", b"k1", b"k2"], &Default::default())
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_values(values);
+
+        let values = db
+            .snapshot()
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_values(values);
+
+        let none_values = initial_snap
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(none_values, vec![None; 3]);
+
+        let k1_only = k1_snap
+            .multi_get([b"k0", b"k1", b"k2"])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(k1_only, vec![None, Some(b"v1".to_vec()), None]);
+    }
+}
+
+#[test]
+fn multi_get_cf() {
+    let tmp = TemporaryDBPath::new();
+    let path = tmp.join("_rust_rocksdb_multi_get_cf");
+
+    {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+        let db = DB::open_cf(&opts, path, ["cf0", "cf1", "cf2"]).unwrap();
+
+        let cf0 = db.cf_handle("cf0").unwrap();
+
+        let cf1 = db.cf_handle("cf1").unwrap();
+        db.put_cf(cf1, b"k1", b"v1").unwrap();
+
+        let cf2 = db.cf_handle("cf2").unwrap();
+        db.put_cf(cf2, b"k2", b"v2").unwrap();
+
+        let values = db
+            .multi_get_cf(vec![(cf0, b"k0"), (cf1, b"k1"), (cf2, b"k2")])
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+        assert_eq!(3, values.len());
+        assert_eq!(values[0], None);
+        assert_eq!(values[1], Some(b"v1".to_vec()));
+        assert_eq!(values[2], Some(b"v2".to_vec()));
+    }
+}
+
+#[test]
+fn batched_multi_get_cf() {
+    let tmp = TemporaryDBPath::new();
+    let path = tmp.join("_rust_rocksdb_batched_multi_get_cf");
+
+    {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+        opts.create_missing_column_families(true);
+        let db = DB::open_cf(&opts, path, ["cf0"]).unwrap();
+
+        let cf = db.cf_handle("cf0").unwrap();
+        db.put_cf(cf, b"k1", b"v1").unwrap();
+        db.put_cf(cf, b"k2", b"v2").unwrap();
+
+        let values = db
+            .batched_multi_get_cf(cf, vec![b"k0", b"k1", b"k2"], true) // sorted_input
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|v| v.map(|v| v.to_vec()))
+            .collect::<Vec<_>>();
+        assert_eq!(3, values.len());
+        assert!(values[0].is_none());
+        assert!(values[1].is_some());
+        assert_eq!(&(values[1].as_ref().unwrap())[0..2], b"v1");
+        assert_eq!(&(values[2].as_ref().unwrap())[0..2], b"v2");
+    }
+}
