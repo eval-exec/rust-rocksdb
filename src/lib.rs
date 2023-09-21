@@ -103,9 +103,9 @@ pub use crate::db_iterator::{DBIterator, DBRawIterator, Direction, IteratorMode}
 pub use crate::db_options::{
     BlockBasedIndexType, BlockBasedOptions, BottommostLevelCompaction, Cache, CompactOptions,
     CuckooTableOptions, DBCompactionStyle, DBCompressionType, DBPath, DBRecoveryMode,
-    DataBlockIndexType, Env, FifoCompactOptions, FlushOptions, IngestExternalFileOptions, LogLevel,
-    MemtableFactory, Options, PlainTableFactoryOptions, ReadOptions, UniversalCompactOptions,
-    UniversalCompactionStopStyle, WriteOptions,
+    DataBlockIndexType, Env, FifoCompactOptions, FlushOptions, IngestExternalFileOptions,
+    KeyEncodingType, LogLevel, MemtableFactory, Options, PlainTableFactoryOptions, ReadOptions,
+    UniversalCompactOptions, UniversalCompactionStopStyle, WriteOptions,
 };
 pub use crate::db_pinnable_slice::DBPinnableSlice;
 pub use crate::db_vector::DBVector;

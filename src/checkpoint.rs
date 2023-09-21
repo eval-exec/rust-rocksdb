@@ -15,7 +15,7 @@
 
 use crate::ffi;
 use crate::ops::*;
-///! Implementation of bindings to RocksDB Checkpoint[1] API
+/// Implementation of bindings to RocksDB Checkpoint[1] API
 ///
 /// [1]: https://github.com/facebook/rocksdb/wiki/Checkpoints
 use crate::{Error, DB};

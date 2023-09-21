@@ -31,7 +31,7 @@ march-native = ["librocksdb-sys/march-native"]
 
 [dependencies]
 libc = "0.2"
-librocksdb-sys = { package = "ckb-librocksdb-sys", path = "librocksdb-sys", version = "=8.1.1" }
+librocksdb-sys = { package = "ckb-librocksdb-sys", path = "librocksdb-sys", version = "=8.5.3" }
 tempfile = "3"
 
 [dev-dependencies]
