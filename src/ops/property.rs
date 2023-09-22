@@ -118,7 +118,7 @@ fn property_value_impl<R>(
         ))),
     };
     unsafe {
-        libc::free(value as *mut c_void);
+        ffi::rocksdb_free(value as *mut c_void);
     }
     result
 }

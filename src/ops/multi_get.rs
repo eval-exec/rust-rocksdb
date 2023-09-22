@@ -191,7 +191,7 @@ where
 }
 
 pub trait BatchedMultiGetCF<R> {
-    fn batched_multi_get_cf_full<K, I>(
+    fn batched_multi_get_cf_full<'a, K, I>(
         &self,
         cf: &ColumnFamily,
         keys: I,
@@ -199,23 +199,23 @@ pub trait BatchedMultiGetCF<R> {
         readopts: Option<&R>,
     ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
     where
-        K: AsRef<[u8]>,
-        I: IntoIterator<Item = K>;
+        K: AsRef<[u8]> + 'a + ?Sized,
+        I: IntoIterator<Item = &'a K>;
 
-    fn batched_multi_get_cf<K, I>(
+    fn batched_multi_get_cf<'a, K, I>(
         &self,
         cf: &ColumnFamily,
         keys: I,
         sorted_input: bool,
     ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
     where
-        K: AsRef<[u8]>,
-        I: IntoIterator<Item = K>,
+        K: AsRef<[u8]> + 'a + ?Sized,
+        I: IntoIterator<Item = &'a K>,
     {
         self.batched_multi_get_cf_full(cf, keys, sorted_input, None)
     }
 
-    fn batched_multi_get_cf_opt<K, I>(
+    fn batched_multi_get_cf_opt<'a, K, I>(
         &self,
         cf: &ColumnFamily,
         keys: I,
@@ -223,8 +223,8 @@ pub trait BatchedMultiGetCF<R> {
         readopts: &R,
     ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
     where
-        K: AsRef<[u8]>,
-        I: IntoIterator<Item = K>,
+        K: AsRef<[u8]> + 'a + ?Sized,
+        I: IntoIterator<Item = &'a K>,
     {
         self.batched_multi_get_cf_full(cf, keys, sorted_input, Some(readopts))
     }
@@ -234,7 +234,7 @@ impl<T> BatchedMultiGetCF<ReadOptions> for T
 where
     T: Handle<ffi::rocksdb_t> + super::Read,
 {
-    fn batched_multi_get_cf_full<K, I>(
+    fn batched_multi_get_cf_full<'a, K, I>(
         &self,
         cf: &ColumnFamily,
         keys: I,
@@ -242,8 +242,8 @@ where
         readopts: Option<&ReadOptions>,
     ) -> Vec<Result<Option<DBPinnableSlice>, Error>>
     where
-        K: AsRef<[u8]>,
-        I: IntoIterator<Item = K>,
+        K: AsRef<[u8]> + 'a + ?Sized,
+        I: IntoIterator<Item = &'a K>,
     {
         let mut default_readopts = None;
         let ro_handle = match ReadOptions::input_or_default(readopts, &mut default_readopts) {
@@ -258,11 +258,13 @@ where
             }
         };
 
-        let (keys, keys_sizes): (Vec<Box<[u8]>>, Vec<_>) = keys
+        let (ptr_keys, keys_sizes): (Vec<_>, Vec<_>) = keys
             .into_iter()
-            .map(|k| (Box::from(k.as_ref()), k.as_ref().len()))
+            .map(|k| {
+                let k = k.as_ref();
+                (k.as_ptr() as *const c_char, k.len())
+            })
             .unzip();
-        let ptr_keys: Vec<_> = keys.iter().map(|k| k.as_ptr() as *const c_char).collect();
 
         let mut pinned_values = vec![ptr::null_mut(); ptr_keys.len()];
         let mut errors = vec![ptr::null_mut(); ptr_keys.len()];

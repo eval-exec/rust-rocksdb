@@ -25,7 +25,7 @@ pub fn error_message(ptr: *const c_char) -> String {
     let cstr = unsafe { CStr::from_ptr(ptr as *const _) };
     let s = String::from_utf8_lossy(cstr.to_bytes()).into_owned();
     unsafe {
-        libc::free(ptr as *mut c_void);
+        ffi::rocksdb_free(ptr as *mut c_void);
     }
     s
 }
