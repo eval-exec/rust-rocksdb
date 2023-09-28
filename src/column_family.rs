@@ -19,8 +19,8 @@ use crate::{handle::Handle, ColumnFamily, Options};
 /// A description of the column family, containing the name and `Options`.
 #[derive(Clone)]
 pub struct ColumnFamilyDescriptor {
-    pub(crate) name: String,
-    pub(crate) options: Options,
+    pub name: String,
+    pub options: Options,
 }
 
 impl ColumnFamilyDescriptor {
