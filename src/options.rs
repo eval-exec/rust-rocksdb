@@ -34,12 +34,25 @@ impl FullOptions {
     where
         P: AsRef<path::Path>,
     {
+        Self::load_from_file_with_cache(
+            file,
+            cache_size.map(Cache::new_lru_cache),
+            ignore_unknown_options,
+        )
+    }
+
+    pub fn load_from_file_with_cache<P>(
+        file: P,
+        cache: Option<Cache>,
+        ignore_unknown_options: bool,
+    ) -> Result<Self, Error>
+    where
+        P: AsRef<path::Path>,
+    {
         let cpath = ffi_util::to_cpath(
             file,
             "Failed to convert path to CString when load config file.",
         )?;
-
-        let cache = cache_size.map(Cache::new_lru_cache);
 
         unsafe {
             let env = ffi::rocksdb_create_default_env();
