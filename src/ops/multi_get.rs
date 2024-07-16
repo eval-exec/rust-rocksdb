@@ -283,7 +283,7 @@ where
             );
             pinned_values
                 .into_iter()
-                .zip(errors.into_iter())
+                .zip(errors)
                 .map(|(v, e)| {
                     if e.is_null() {
                         if v.is_null() {
@@ -307,8 +307,8 @@ pub fn convert_values(
 ) -> Vec<Result<Option<DBVector>, Error>> {
     values
         .into_iter()
-        .zip(values_sizes.into_iter())
-        .zip(errors.into_iter())
+        .zip(values_sizes)
+        .zip(errors)
         .map(|((v, s), e)| {
             if e.is_null() {
                 if v.is_null() {
