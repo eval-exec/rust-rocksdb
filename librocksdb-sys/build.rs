@@ -287,8 +287,12 @@ fn build_rocksdb() {
     }
 
     if target.contains("msvc") {
-        config.flag("-EHsc");
-        config.flag("-std:c++17");
+        if cfg!(feature = "mt_static") {
+            config.static_crt(true);
+        }
+        config.flag("/EHsc");
+        // Don't use cxx_standard(): MSVC uses `/std:` instead of `-std=`.
+        config.flag("/std:c++17");
     } else {
         // matches the flags in CMakeLists.txt from rocksdb
         config.flag("-Wsign-compare");
@@ -329,7 +333,11 @@ fn build_rocksdb() {
 
     config.cpp(true);
 
-    config.flag("-include").flag("cstdint");
+    if config.get_compiler().is_like_msvc() {
+        config.flag("/FIcstdint");
+    } else {
+        config.flag("-include").flag("cstdint");
+    }
 
     config.compile("librocksdb.a");
 }
@@ -345,7 +353,10 @@ fn build_snappy() {
     config.extra_warnings(false);
 
     if target.contains("msvc") {
-        config.flag("-EHsc");
+        if cfg!(feature = "mt_static") {
+            config.static_crt(true);
+        }
+        config.flag("/EHsc");
     } else {
         // Snappy requires C++11.
         // See: https://github.com/google/snappy/blob/master/CMakeLists.txt#L32-L38
@@ -365,6 +376,7 @@ fn build_snappy() {
 
 fn build_lz4() {
     let mut compiler = cc::Build::new();
+    let target = env::var("TARGET").unwrap();
 
     compiler
         .file("lz4/lib/lz4.c")
@@ -374,7 +386,9 @@ fn build_lz4() {
 
     compiler.opt_level(3);
 
-    let target = env::var("TARGET").unwrap();
+    if target.contains("msvc") && cfg!(feature = "mt_static") {
+        compiler.static_crt(true);
+    }
 
     if &target == "i686-pc-windows-gnu" {
         compiler.flag("-fno-tree-vectorize");
@@ -385,6 +399,7 @@ fn build_lz4() {
 
 fn build_zstd() {
     let mut compiler = cc::Build::new();
+    let target = env::var("TARGET").unwrap();
 
     compiler.include("zstd/lib/");
     compiler.include("zstd/lib/common");
@@ -408,12 +423,17 @@ fn build_zstd() {
     compiler.opt_level(3);
     compiler.extra_warnings(false);
 
+    if target.contains("msvc") && cfg!(feature = "mt_static") {
+        compiler.static_crt(true);
+    }
+
     compiler.define("ZSTD_LIB_DEPRECATED", Some("0"));
     compiler.compile("libzstd.a");
 }
 
 fn build_zlib() {
     let mut compiler = cc::Build::new();
+    let target = env::var("TARGET").unwrap();
 
     let globs = &["zlib/*.c"];
 
@@ -427,11 +447,15 @@ fn build_zlib() {
     compiler.flag_if_supported("-Wno-implicit-function-declaration");
     compiler.opt_level(3);
     compiler.extra_warnings(false);
+    if target.contains("msvc") && cfg!(feature = "mt_static") {
+        compiler.static_crt(true);
+    }
     compiler.compile("libz.a");
 }
 
 fn build_bzip2() {
     let mut compiler = cc::Build::new();
+    let target = env::var("TARGET").unwrap();
 
     compiler
         .file("bzip2/blocksort.c")
@@ -449,6 +473,9 @@ fn build_bzip2() {
     compiler.extra_warnings(false);
     compiler.opt_level(3);
     compiler.extra_warnings(false);
+    if target.contains("msvc") && cfg!(feature = "mt_static") {
+        compiler.static_crt(true);
+    }
     compiler.compile("libbz2.a");
 }
 
