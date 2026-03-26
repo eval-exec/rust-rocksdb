@@ -52,4 +52,3 @@ cc = { version = "1.0", features = ["parallel"] }
 bindgen = { version = "0.71.1", default-features = false }
 glob = "0.3.2"
 pkg-config = "0.3"
-rust-ini = "0.21"
